@@ -16,7 +16,7 @@
 // ST7735S 128x160 SPI display.
 #define RG_SCREEN_DRIVER            2   // 2 = ST7735S
 #define RG_SCREEN_HOST              SPI2_HOST
-#define RG_SCREEN_SPEED             SPI_MASTER_FREQ_40M
+#define RG_SCREEN_SPEED             SPI_MASTER_FREQ_26M
 #define RG_SCREEN_BACKLIGHT         1
 #define RG_SCREEN_WIDTH             128
 #define RG_SCREEN_HEIGHT            160
