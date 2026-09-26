@@ -49,7 +49,7 @@
     {RG_KEY_SELECT, .num = GPIO_NUM_14, .pullup = 1, .level = 0},\
 }
 
-# Display defaults: fill the entire panel. This intentionally stretches
+// Display defaults: fill the entire panel. This intentionally stretches
 // emulator frames when their aspect ratio differs from 128x160.
 // The panel image is rotated 180 degrees by ST7735 MADCTL above.
 #ifndef RG_DISPLAY_DEFAULT_SCALING
