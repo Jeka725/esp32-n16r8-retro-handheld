@@ -29,7 +29,7 @@
 // modules whose visible glass starts at a non-zero GRAM offset.
 #define RG_ST7735_XSTART            0
 #define RG_ST7735_YSTART            0
-#define RG_ST7735_MADCTL            0xC8
+#define RG_ST7735_MADCTL            0x08
 
 #define RG_GPIO_LCD_MISO            GPIO_NUM_NC
 #define RG_GPIO_LCD_MOSI            GPIO_NUM_6
@@ -49,11 +49,11 @@
     {RG_KEY_SELECT, .num = GPIO_NUM_14, .pullup = 1, .level = 0},\
 }
 
-// Display defaults are deliberately aspect-preserving.
-// The existing scaling engine will compute the best fit for each emulator
-// framebuffer on the 128x160 panel.
+# Display defaults: fill the entire panel. This intentionally stretches
+// emulator frames when their aspect ratio differs from 128x160.
+// The panel image is rotated 180 degrees by ST7735 MADCTL above.
 #ifndef RG_DISPLAY_DEFAULT_SCALING
-#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FIT
+#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FULL
 #endif
 #define RG_DISPLAY_DEFAULT_FILTER  RG_DISPLAY_FILTER_BOTH
 
