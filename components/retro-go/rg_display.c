@@ -1,6 +1,12 @@
 #include "rg_system.h"
 #include "rg_display.h"
 
+#ifndef RG_DISPLAY_DEFAULT_SCALING
+#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FIT
+#endif
+#ifndef RG_DISPLAY_DEFAULT_FILTER
+#define RG_DISPLAY_DEFAULT_FILTER RG_DISPLAY_FILTER_BOTH
+#endif
 #include <stdlib.h>
 #include <string.h>
 
