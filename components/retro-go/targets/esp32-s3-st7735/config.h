@@ -29,7 +29,7 @@
 // modules whose visible glass starts at a non-zero GRAM offset.
 #define RG_ST7735_XSTART            0
 #define RG_ST7735_YSTART            0
-#define RG_ST7735_MADCTL            0x08
+#define RG_ST7735_MADCTL            0xA8
 
 #define RG_GPIO_LCD_MISO            GPIO_NUM_NC
 #define RG_GPIO_LCD_MOSI            GPIO_NUM_6
@@ -46,7 +46,7 @@
     {RG_KEY_DOWN,   .num = GPIO_NUM_11, .pullup = 1, .level = 0},\
     {RG_KEY_LEFT,   .num = GPIO_NUM_12, .pullup = 1, .level = 0},\
     {RG_KEY_RIGHT,  .num = GPIO_NUM_13, .pullup = 1, .level = 0},\
-    {RG_KEY_SELECT, .num = GPIO_NUM_14, .pullup = 1, .level = 0},\
+    {RG_KEY_A,      .num = GPIO_NUM_14, .pullup = 1, .level = 0},\
 }
 
 // Display defaults: fill the entire panel. This intentionally stretches
