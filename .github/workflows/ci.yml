@@ -24,12 +24,13 @@ jobs:
         cache-to: type=gha,mode=max
         load: true
 
-    - name: Extract binaries from docker image
+    - name: Extract firmware images from docker image
       run: |
-        docker run --rm -v $(pwd)/build:/build retro-go:latest sh -c "cp /app/*.fw /build"
+        mkdir -p build
+        docker run --rm -v $(pwd)/build:/build retro-go:latest sh -c 'set -e; cp /app/*.fw /build/ 2>/dev/null || true; cp /app/*.img /build/ 2>/dev/null || true; ls -lh /build'
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: binaries
-        path: build/*.fw
+        path: build/*
