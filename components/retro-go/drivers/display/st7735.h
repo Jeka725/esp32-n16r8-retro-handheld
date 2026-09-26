@@ -171,7 +171,7 @@ static void lcd_set_backlight(float percent)
     error_code = ledc_set_fade_time_and_start(
         ST7735_BL_SPEED_MODE,
         ST7735_BL_CHANNEL,
-        (1 << 13) * level,
+        0x1FFF * level,
         50,
         0);
 #endif
