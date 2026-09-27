@@ -249,6 +249,35 @@ static void retro_loop(void)
             }
         }
 
+        // Physical SELECT is mapped to RG_KEY_A on this 5-button target.
+        // Long hold is handled from the actual sampled state, independent of
+        // launcher key-repeat timing. Once Back fires, this press can never
+        // become a Select action when released, even if the button is held
+        // for much longer than 2 seconds.
+        const int64_t now = rg_system_timer();
+        const bool a_down = (gui.joystick & RG_KEY_A) != 0;
+        const bool a_was_down = (prev_joystick & RG_KEY_A) != 0;
+
+        if (a_down && !a_was_down)
+        {
+            select_hold_start = now;
+            select_hold_back = false;
+        }
+        else if (a_down && select_hold_start && !select_hold_back &&
+                 (now - select_hold_start) >= 2000000)
+        {
+            select_hold_back = true;
+            if (gui.browse)
+            {
+                if (tab->navpath)
+                    gui_event(TAB_BACK, tab);
+                else
+                    gui.browse = false;
+            }
+            select_action_block_until = INT64_MAX;
+            redraw_pending = true;
+        }
+
         if (joystick & (RG_KEY_MENU|RG_KEY_OPTION))
         {
             if (joystick == RG_KEY_MENU)
@@ -319,23 +348,9 @@ static void retro_loop(void)
                 redraw_pending = true;
             }
             else if (joystick == RG_KEY_A) {
-                // Short press = select/confirm; hold SELECT/A for 2 seconds = back.
-                int64_t now = rg_system_timer();
-                if (!(prev_joystick & RG_KEY_A)) {
-                    select_hold_start = now;
-                    select_hold_back = false;
-                } else if (!select_hold_back && select_hold_start &&
-                           (now - select_hold_start) >= 2000000) {
-                    select_hold_back = true;
-                    if (tab->navpath)
-                        gui_event(TAB_BACK, tab);
-                    else
-                        gui.browse = false;
-                    // After using SELECT as the 2-second Back button, ignore SELECT
-                    // actions for 500 ms so the same press cannot immediately confirm.
-                    select_action_block_until = now + 500000;
-                    redraw_pending = true;
-                }
+                // A is the physical SELECT button on this target.
+                // Hold handling is evaluated from the real button state above,
+                // not from the auto-repeat event, so a long hold cannot be missed.
             }
             else if (joystick == RG_KEY_B) {
                 if (tab->navpath)
@@ -358,14 +373,18 @@ static void retro_loop(void)
             }
         }
 
-        if (!(gui.joystick & RG_KEY_A) && (prev_joystick & RG_KEY_A) &&
-            gui.browse && !select_hold_back) {
-            if (rg_system_timer() >= select_action_block_until) {
+        if (!a_down && a_was_down) {
+            if (select_hold_back) {
+                // Long-hold Back consumed this press. Add the requested
+                // 500 ms dead-time after release as well.
+                select_action_block_until = rg_system_timer() + 500000;
+            }
+            else if (gui.browse && rg_system_timer() >= select_action_block_until) {
+                // Normal short SELECT/A press.
                 gui_event(TAB_ACTION, tab);
                 redraw_pending = true;
             }
-        }
-        if (!(gui.joystick & RG_KEY_A)) {
+
             select_hold_start = 0;
             select_hold_back = false;
         }
