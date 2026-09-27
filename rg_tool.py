@@ -81,6 +81,21 @@ def build_firmware(output_file, apps, fw_format="odroid-go", fatsize=0):
     run(args)
 
 
+def parse_size(value):
+    """Parse sizes such as 8M, 10M, 512K or plain bytes."""
+    if value is None or value == 0:
+        return 0
+    if isinstance(value, int):
+        return value
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([KMG]?)B?\s*", str(value), re.IGNORECASE)
+    if not match:
+        raise ValueError("Invalid size: %s" % value)
+    number = float(match.group(1))
+    unit = match.group(2).upper()
+    multiplier = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3}[unit]
+    return int(number * multiplier)
+
+
 def build_image(output_file, apps, img_format="esp32", fatsize=0):
     print("Building image with: %s\n" % " ".join(apps))
     image_data = bytearray(b"\xFF" * 0x10000)
@@ -100,8 +115,29 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
         image_data += data + b"\xFF" * (part_size - len(data))
 
     if fatsize:
-        # Use "vfs" label, same as MicroPython, in case the storage is to be shared with a MicroPython install
-        table_csv.append("vfs, data, fat, %d, %s" % (len(image_data), fatsize))
+        # The VFS partition is real FAT on the ESP32-S3's internal SPI flash.
+        # Populate it from the repository's roms/ directory so ROMs are available
+        # immediately after flashing; saves/settings remain writable at runtime.
+        fat_size = parse_size(fatsize)
+        fat_dir = os.path.abspath("roms")
+        os.makedirs(fat_dir, exist_ok=True)
+        fat_image = os.path.abspath("storage_fat.bin")
+        fatfsgen = os.path.join(IDF_PATH, "components", "fatfs", "wl_fatfsgen.py")
+        run([
+            sys.executable, fatfsgen,
+            "--output_file", fat_image,
+            "--partition_size", str(fat_size),
+            "--long_name_support",
+            "--use_default_datetime",
+            fat_dir,
+        ])
+        with open(fat_image, "rb") as f:
+            fat_data = f.read()
+        if len(fat_data) > fat_size:
+            raise RuntimeError("Generated FAT image is larger than the configured partition")
+        fat_data += b"\xFF" * (fat_size - len(fat_data))
+        table_csv.append("vfs, data, fat, %d, %d" % (len(image_data), fat_size))
+        image_data += fat_data
 
     print("Generating partition table...")
     with open("partitions.csv", "w") as f:
