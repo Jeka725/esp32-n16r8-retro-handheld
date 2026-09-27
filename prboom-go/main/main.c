@@ -204,7 +204,7 @@ void I_SafeExit(int rc)
 
 const char *I_DoomExeDir(void)
 {
-    return RG_BASE_PATH_ROMS "/doom";
+    return RG_STORAGE_ROOT;
 }
 
 void I_UpdateSoundParams(int handle, int volume, int seperation, int pitch)
