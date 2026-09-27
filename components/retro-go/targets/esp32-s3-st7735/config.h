@@ -18,8 +18,8 @@
 #define RG_SCREEN_HOST              SPI2_HOST
 #define RG_SCREEN_SPEED             SPI_MASTER_FREQ_26M
 #define RG_SCREEN_BACKLIGHT         1
-#define RG_SCREEN_WIDTH             128
-#define RG_SCREEN_HEIGHT            160
+#define RG_SCREEN_WIDTH             160
+#define RG_SCREEN_HEIGHT            128
 #define RG_SCREEN_ROTATE            0
 #define RG_SCREEN_VISIBLE_AREA      {0, 0, 0, 0}
 #define RG_SCREEN_SAFE_AREA         {0, 0, 0, 0}
