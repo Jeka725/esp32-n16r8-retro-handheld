@@ -143,18 +143,35 @@ def _fat16_lfn_entries(long_name, short_name):
     return entries
 
 
+def _fat12_set_entry(fat, cluster, value):
+    """Write one 12-bit FAT entry."""
+    offset = cluster + (cluster // 2)
+    value &= 0x0FFF
+    if cluster & 1:
+        fat[offset] = (fat[offset] & 0x0F) | ((value << 4) & 0xF0)
+        fat[offset + 1] = (value >> 4) & 0xFF
+    else:
+        fat[offset] = value & 0xFF
+        fat[offset + 1] = (fat[offset + 1] & 0xF0) | ((value >> 8) & 0x0F)
+
+
 def _build_fat16_image(output_file, file_paths, image_size):
-    """Build a self-contained FAT16 image using only Python stdlib."""
-    sector_size = 512
+    """Build a raw FAT12 image using the 4096-byte logical sectors of raw SPI flash.
+
+    The ESP-IDF 4.4 raw-flash disk driver exposes the flash erase sector as the
+    FAT logical sector. A 10 MiB partition therefore has 2560 logical sectors,
+    which is FAT12-sized, not FAT16-sized.
+    """
+    sector_size = 4096
     if image_size % sector_size:
-        raise RuntimeError("FAT16 image size must be sector-aligned")
+        raise RuntimeError("FAT image size must be aligned to the flash sector size")
     total_sectors = image_size // sector_size
-    if total_sectors < 4096:
-        raise RuntimeError("FAT16 image is too small")
+    if total_sectors < 4 or total_sectors > 0xFFFF:
+        raise RuntimeError("FAT12 image has an invalid sector count")
 
     reserved_sectors = 1
     fat_count = 2
-    root_entries = 512
+    root_entries = 128
     root_dir_sectors = (root_entries * 32 + sector_size - 1) // sector_size
     sectors_per_cluster = 1
 
@@ -162,17 +179,17 @@ def _build_fat16_image(output_file, file_paths, image_size):
     for _ in range(16):
         data_sectors = total_sectors - reserved_sectors - fat_count * fat_sectors - root_dir_sectors
         cluster_count = data_sectors // sectors_per_cluster
-        needed = ((cluster_count + 2) * 2 + sector_size - 1) // sector_size
+        needed = (((cluster_count + 2) * 3) + 1) // 2
+        needed = (needed + sector_size - 1) // sector_size
         if needed == fat_sectors:
             break
         fat_sectors = needed
 
-    if cluster_count < 4085 or cluster_count > 65524:
-        raise RuntimeError("Configured image does not produce a valid FAT16 cluster count")
+    if cluster_count > 4084:
+        raise RuntimeError("Configured image does not fit FAT12 cluster limits")
 
     image = bytearray(b"\xFF" * image_size)
 
-    # FAT16 BIOS Parameter Block.
     image[0:3] = b"\xEB\x3C\x90"
     image[3:11] = b"MSDOS5.0"
     struct.pack_into("<H", image, 11, sector_size)
@@ -191,14 +208,14 @@ def _build_fat16_image(output_file, file_paths, image_size):
     image[38] = 0x29
     struct.pack_into("<I", image, 39, 0x5254474F)
     image[43:54] = b"RETROGO    "
-    image[54:62] = b"FAT16   "
+    image[54:62] = b"FAT12   "
     image[510:512] = b"\x55\xAA"
 
     fat_offset = reserved_sectors * sector_size
     fat_bytes = fat_sectors * sector_size
     fat = bytearray(fat_bytes)
-    struct.pack_into("<H", fat, 0, 0xFFF8)
-    struct.pack_into("<H", fat, 2, 0xFFFF)
+    _fat12_set_entry(fat, 0, 0xFF8)
+    _fat12_set_entry(fat, 1, 0xFFF)
 
     root_offset = (reserved_sectors + fat_count * fat_sectors) * sector_size
     data_offset = root_offset + root_dir_sectors * sector_size
@@ -213,19 +230,19 @@ def _build_fat16_image(output_file, file_paths, image_size):
         size = os.path.getsize(path)
         clusters_needed = max(1, (size + sector_size - 1) // sector_size)
         if next_cluster + clusters_needed - 2 > cluster_count:
-            raise RuntimeError("FAT16 image is too small for bundled files")
+            raise RuntimeError("FAT image is too small for bundled files")
 
         short_name = _fat16_short_name(name, used_short_names)
         used_short_names.add(short_name)
         lfn_entries = _fat16_lfn_entries(name, short_name)
         entry_count = len(lfn_entries) + 1
         if root_pos + entry_count * 32 > len(root) - 32:
-            raise RuntimeError("FAT16 root directory is full")
+            raise RuntimeError("FAT root directory is full")
 
         first_cluster = next_cluster
         for cluster in range(first_cluster, first_cluster + clusters_needed):
-            next_value = 0xFFFF if cluster == first_cluster + clusters_needed - 1 else cluster + 1
-            struct.pack_into("<H", fat, cluster * 2, next_value)
+            next_value = 0xFFF if cluster == first_cluster + clusters_needed - 1 else cluster + 1
+            _fat12_set_entry(fat, cluster, next_value)
 
         with open(path, "rb") as src:
             remaining = size
