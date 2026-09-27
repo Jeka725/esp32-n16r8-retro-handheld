@@ -7,6 +7,7 @@ import math
 import sys
 import re
 import os
+import struct
 
 DEFAULT_TARGET = os.getenv("RG_TOOL_TARGET", "odroid-go")
 DEFAULT_BAUD = os.getenv("RG_TOOL_BAUD", "1152000")
@@ -92,6 +93,173 @@ def parse_size(value):
     return int(number * multiplier)
 
 
+def _fat16_short_name(long_name, used_names):
+    """Create a unique 8.3 alias for a root-directory FAT16 file."""
+    stem, ext = os.path.splitext(os.path.basename(long_name))
+    stem = "".join(ch for ch in stem.upper() if ch.isalnum())
+    ext = "".join(ch for ch in ext[1:].upper() if ch.isalnum())[:3]
+    base = (stem[:8] or "FILE")
+    candidate = (base.ljust(8) + ext.ljust(3)).encode("ascii")
+    if candidate not in used_names:
+        return candidate
+    for n in range(1, 100):
+        tail = "~%d" % n
+        base_n = (stem[:8 - len(tail)] + tail)[:8]
+        candidate = (base_n.ljust(8) + ext.ljust(3)).encode("ascii")
+        if candidate not in used_names:
+            return candidate
+    raise RuntimeError("Unable to create unique FAT 8.3 alias for %s" % long_name)
+
+
+def _fat16_lfn_entries(long_name, short_name):
+    """Return LFN directory entries for a FAT16 root directory."""
+    encoded = long_name.encode("utf-16le")
+    code_units = list(struct.unpack("<%dH" % (len(encoded) // 2), encoded))
+    checksum = 0
+    for value in short_name:
+        checksum = ((checksum & 1) << 7) + (checksum >> 1) + value
+        checksum &= 0xFF
+
+    chunks = [code_units[i:i + 13] for i in range(0, len(code_units), 13)]
+    entries = []
+    for index in range(len(chunks) - 1, -1, -1):
+        units = chunks[index] + [0x0000]
+        units += [0xFFFF] * (13 - len(units))
+        ordinal = index + 1
+        if index == len(chunks) - 1:
+            ordinal |= 0x40
+
+        entry = bytearray(32)
+        entry[0] = ordinal
+        struct.pack_into("<5H", entry, 1, *units[0:5])
+        entry[11] = 0x0F
+        entry[12] = 0
+        entry[13] = checksum
+        struct.pack_into("<6H", entry, 14, *units[5:11])
+        struct.pack_into("<2H", entry, 28, *units[11:13])
+        entries.append(bytes(entry))
+    return entries
+
+
+def _build_fat16_image(output_file, file_paths, image_size):
+    """Build a self-contained FAT16 image using only Python stdlib."""
+    sector_size = 512
+    if image_size % sector_size:
+        raise RuntimeError("FAT16 image size must be sector-aligned")
+    total_sectors = image_size // sector_size
+    if total_sectors < 4096:
+        raise RuntimeError("FAT16 image is too small")
+
+    reserved_sectors = 1
+    fat_count = 2
+    root_entries = 512
+    root_dir_sectors = (root_entries * 32 + sector_size - 1) // sector_size
+    sectors_per_cluster = 1
+
+    fat_sectors = 1
+    for _ in range(16):
+        data_sectors = total_sectors - reserved_sectors - fat_count * fat_sectors - root_dir_sectors
+        cluster_count = data_sectors // sectors_per_cluster
+        needed = ((cluster_count + 2) * 2 + sector_size - 1) // sector_size
+        if needed == fat_sectors:
+            break
+        fat_sectors = needed
+
+    if cluster_count < 4085 or cluster_count > 65524:
+        raise RuntimeError("Configured image does not produce a valid FAT16 cluster count")
+
+    image = bytearray(b"\xFF" * image_size)
+
+    # FAT16 BIOS Parameter Block.
+    image[0:3] = b"\xEB\x3C\x90"
+    image[3:11] = b"MSDOS5.0"
+    struct.pack_into("<H", image, 11, sector_size)
+    image[13] = sectors_per_cluster
+    struct.pack_into("<H", image, 14, reserved_sectors)
+    image[16] = fat_count
+    struct.pack_into("<H", image, 17, root_entries)
+    struct.pack_into("<H", image, 19, total_sectors)
+    image[21] = 0xF8
+    struct.pack_into("<H", image, 22, fat_sectors)
+    struct.pack_into("<H", image, 24, 32)
+    struct.pack_into("<H", image, 26, 64)
+    struct.pack_into("<I", image, 28, 0)
+    struct.pack_into("<I", image, 32, 0)
+    image[36] = 0x80
+    image[38] = 0x29
+    struct.pack_into("<I", image, 39, 0x5254474F)
+    image[43:54] = b"RETROGO    "
+    image[54:62] = b"FAT16   "
+    image[510:512] = b"\x55\xAA"
+
+    fat_offset = reserved_sectors * sector_size
+    fat_bytes = fat_sectors * sector_size
+    fat = bytearray(fat_bytes)
+    struct.pack_into("<H", fat, 0, 0xFFF8)
+    struct.pack_into("<H", fat, 2, 0xFFFF)
+
+    root_offset = (reserved_sectors + fat_count * fat_sectors) * sector_size
+    data_offset = root_offset + root_dir_sectors * sector_size
+    root = bytearray(root_dir_sectors * sector_size)
+
+    used_short_names = set()
+    root_pos = 0
+    next_cluster = 2
+
+    for path in file_paths:
+        name = os.path.basename(path)
+        size = os.path.getsize(path)
+        clusters_needed = max(1, (size + sector_size - 1) // sector_size)
+        if next_cluster + clusters_needed - 2 > cluster_count:
+            raise RuntimeError("FAT16 image is too small for bundled files")
+
+        short_name = _fat16_short_name(name, used_short_names)
+        used_short_names.add(short_name)
+        lfn_entries = _fat16_lfn_entries(name, short_name)
+        entry_count = len(lfn_entries) + 1
+        if root_pos + entry_count * 32 > len(root) - 32:
+            raise RuntimeError("FAT16 root directory is full")
+
+        first_cluster = next_cluster
+        for cluster in range(first_cluster, first_cluster + clusters_needed):
+            next_value = 0xFFFF if cluster == first_cluster + clusters_needed - 1 else cluster + 1
+            struct.pack_into("<H", fat, cluster * 2, next_value)
+
+        with open(path, "rb") as src:
+            remaining = size
+            cluster = first_cluster
+            while remaining:
+                chunk = src.read(sector_size)
+                if not chunk:
+                    raise RuntimeError("Unexpected EOF while packaging %s" % name)
+                offset = data_offset + (cluster - 2) * sector_size
+                image[offset:offset + len(chunk)] = chunk
+                remaining -= len(chunk)
+                cluster += 1
+
+        for entry in lfn_entries:
+            root[root_pos:root_pos + 32] = entry
+            root_pos += 32
+
+        entry = bytearray(32)
+        entry[0:11] = short_name
+        entry[11] = 0x20
+        struct.pack_into("<H", entry, 26, first_cluster)
+        struct.pack_into("<I", entry, 28, size)
+        root[root_pos:root_pos + 32] = entry
+        root_pos += 32
+        next_cluster += clusters_needed
+
+    image[fat_offset:fat_offset + fat_bytes] = fat
+    second_fat_offset = fat_offset + fat_bytes
+    image[second_fat_offset:second_fat_offset + fat_bytes] = fat
+    image[root_offset:root_offset + len(root)] = root
+
+    with open(output_file, "wb") as dst:
+        dst.write(image)
+
+
+
 def build_image(output_file, apps, img_format="esp32", fatsize=0):
     print("Building image with: %s\n" % " ".join(apps))
     image_data = bytearray(b"\xFF" * 0x10000)
@@ -124,31 +292,15 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
         if missing:
             raise RuntimeError("Required root ROM file(s) missing: %s" % ", ".join(missing))
 
-        staging_dir = os.path.abspath(".roms_staging")
-        if os.path.exists(staging_dir):
-            shutil.rmtree(staging_dir)
-        os.makedirs(staging_dir)
-
-        try:
-            for name in rom_files:
-                shutil.copy2(os.path.join(fat_dir, name), os.path.join(staging_dir, name))
-
-            fat_image = os.path.abspath("storage_fat.bin")
-            # ESP-IDF 4.4 predates wl_fatfsgen.py. Build a raw FAT16 image
-            # with mkfs.fat + mtools; the firmware mounts it read-only.
-            run(["dd", "if=/dev/zero", "of=" + fat_image, "bs=1M", "count=" + str(fat_size // (1024 * 1024))])
-            run(["/usr/sbin/mkfs.fat", "-F", "16", "-n", "RETROGO", fat_image])
-            for name in rom_files:
-                run(["/usr/bin/mcopy", "-i", fat_image, os.path.join(staging_dir, name), "::"])
-            with open(fat_image, "rb") as f:
-                fat_data = f.read()
-            if len(fat_data) > fat_size:
-                raise RuntimeError("Generated FAT image is larger than the configured partition")
-            fat_data += b"\xFF" * (fat_size - len(fat_data))
-            table_csv.append("vfs, data, fat, %d, %d" % (len(image_data), fat_size))
-            image_data += fat_data
-        finally:
-            shutil.rmtree(staging_dir, ignore_errors=True)
+        fat_image = os.path.abspath("storage_fat.bin")
+        # Build a raw FAT16 image with the Python standard library.
+        # This is mounted read-only by ESP-IDF 4.4 and avoids host-tool dependencies.
+        rom_paths = [os.path.join(fat_dir, name) for name in rom_files]
+        _build_fat16_image(fat_image, rom_paths, fat_size)
+        with open(fat_image, "rb") as f:
+            fat_data = f.read()
+        table_csv.append("vfs, data, fat, %d, %d" % (len(image_data), fat_size))
+        image_data += fat_data
 
     print("Generating partition table...")
     with open("partitions.csv", "w") as f:
