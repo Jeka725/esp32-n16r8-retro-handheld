@@ -106,6 +106,11 @@ static void application_init(retro_app_t *app)
     rg_storage_mkdir(app->paths.roms);
 
     rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE);
+#ifdef RG_STORAGE_FLASH_PARTITION
+    // Bundled ROMs live in the internal-flash FAT image. Scan its root as a
+    // compatibility layer so the launcher can use the same files without SD.
+    rg_storage_scandir(RG_STORAGE_ROOT, scan_folder_cb, app, 0);
+#endif
     rg_storage_scandir(app->paths.saves, scan_saves_cb, app, RG_SCANDIR_RECURSIVE);
     // rg_storage_scandir(app->paths.covers, scan_folder_cb3, app, RG_SCANDIR_RECURSIVE);
 
