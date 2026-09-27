@@ -25,11 +25,11 @@
 #define RG_SCREEN_SAFE_AREA         {0, 0, 0, 0}
 
 // ST7735S controller-side addressing.
-// Most red-board 128x160 modules use 0,0 offsets. These are overrideable for
-// modules whose visible glass starts at a non-zero GRAM offset.
+// 0x68 = landscape + 180° relative to the previous 0xA8 orientation.
+// Keep RGB/BGR bit set for the ST7735S red-board modules.
 #define RG_ST7735_XSTART            0
 #define RG_ST7735_YSTART            0
-#define RG_ST7735_MADCTL            0xA8
+#define RG_ST7735_MADCTL            0x68
 
 #define RG_GPIO_LCD_MISO            GPIO_NUM_NC
 #define RG_GPIO_LCD_MOSI            GPIO_NUM_6
@@ -39,17 +39,14 @@
 #define RG_GPIO_LCD_RST             GPIO_NUM_15
 #define RG_GPIO_LCD_BCKL            GPIO_NUM_4
 
-// Buttons: UP=9, DOWN=11, LEFT=12, RIGHT=13, SELECT/A=14.\n// SELECT/A short press selects; holding it for 2 seconds is handled by the launcher as Back.\n// Buttons.\n#undef RG_GAMEPAD_ADC_MAP
-#define RG_GAMEPAD_GPIO_MAP {\
-    {RG_KEY_UP,     .num = GPIO_NUM_9,  .pullup = 1, .level = 0},\
-    {RG_KEY_DOWN,   .num = GPIO_NUM_11, .pullup = 1, .level = 0},\
-    {RG_KEY_LEFT,   .num = GPIO_NUM_12, .pullup = 1, .level = 0},\
-    {RG_KEY_RIGHT,  .num = GPIO_NUM_13, .pullup = 1, .level = 0},\
-    {RG_KEY_A,      .num = GPIO_NUM_14, .pullup = 1, .level = 0},\
-}
+// Buttons: UP=9, DOWN=11, LEFT=12, RIGHT=13, SELECT/A=14.
+// SELECT/A short press selects; holding it for 2 seconds is Back.
+// After Back, selection is blocked for 500 ms so releasing SELECT cannot
+// immediately activate the selected item.
+#undef RG_GAMEPAD_ADC_MAP
+#define RG_GAMEPAD_GPIO_MAP {    {RG_KEY_UP,     .num = GPIO_NUM_9,  .pullup = 1, .level = 0},    {RG_KEY_DOWN,   .num = GPIO_NUM_11, .pullup = 1, .level = 0},    {RG_KEY_LEFT,   .num = GPIO_NUM_12, .pullup = 1, .level = 0},    {RG_KEY_RIGHT,  .num = GPIO_NUM_13, .pullup = 1, .level = 0},    {RG_KEY_A,      .num = GPIO_NUM_14, .pullup = 1, .level = 0},}
 
 // Display defaults preserve emulator aspect ratio and fit inside the 160x128 landscape panel.
-// The panel image is rotated 180 degrees by ST7735 MADCTL above.
 #ifndef RG_DISPLAY_DEFAULT_SCALING
 #define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FIT
 #endif
