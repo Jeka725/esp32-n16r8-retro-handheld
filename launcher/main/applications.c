@@ -74,6 +74,61 @@ static int scan_folder_cb(const rg_scandir_t *entry, void *arg)
     return RG_SCANDIR_CONTINUE;
 }
 
+static void add_bundled_rom(retro_app_t *app, const char *path)
+{
+    rg_stat_t info = rg_storage_stat(path);
+    if (!info.exists || !info.is_file || !rg_extension_match(path, app->extensions))
+        return;
+
+    // Avoid adding the same ROM twice when the normal recursive scanner
+    // already found it under its long filename.
+    const char *name = rg_basename(path);
+    const char *folder = rg_dirname(path);
+    for (size_t i = 0; i < app->files_count; i++)
+    {
+        if (strcmp(app->files[i].name, name) == 0 &&
+            strcmp(app->files[i].folder, folder) == 0)
+            return;
+    }
+
+    if (app->files_count + 1 > app->files_capacity)
+    {
+        size_t new_capacity = (app->files_capacity * 1.5) + 1;
+        retro_file_t *new_buf = realloc(app->files, new_capacity * sizeof(retro_file_t));
+        if (!new_buf)
+            return;
+        app->files = new_buf;
+        app->files_capacity = new_capacity;
+    }
+
+    app->files[app->files_count++] = (retro_file_t) {
+        .name = strdup(name),
+        .folder = rg_unique_string(folder),
+        .checksum = 0,
+        .missing_cover = 0,
+        .saves = 0,
+        .type = RETRO_TYPE_FILE,
+        .app = app,
+    };
+
+    RG_LOGI("Bundled ROM found: '%s'", path);
+}
+
+static void scan_bundled_rom_fallback(retro_app_t *app)
+{
+#ifdef RG_STORAGE_FLASH_PARTITION
+    // These stable 8.3 aliases are always present in the generated FAT image.
+    // They let the launcher find the bundled games even if a particular
+    // FatFs build cannot expose the long-name directory entries.
+    if (strcmp(app->short_name, "doom") == 0)
+        add_bundled_rom(app, RG_STORAGE_ROOT "/DOOM.WAD");
+    else if (strcmp(app->short_name, "gba") == 0)
+        add_bundled_rom(app, RG_STORAGE_ROOT "/MARIO.GBA");
+    else if (strcmp(app->short_name, "md") == 0)
+        add_bundled_rom(app, RG_STORAGE_ROOT "/SONIC.MD");
+#endif
+}
+
 static int scan_saves_cb(const rg_scandir_t *entry, void *arg)
 {
     if (entry->is_file && rg_extension_match(entry->basename, "sav"))
@@ -109,6 +164,7 @@ static void application_init(retro_app_t *app)
     // This keeps the normal Retro-Go path logic intact while making the
     // firmware behave exactly like it had an SD card mounted at /sd.
     rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE | RG_SCANDIR_STAT);
+    scan_bundled_rom_fallback(app);
     rg_storage_scandir(app->paths.saves, scan_saves_cb, app, RG_SCANDIR_RECURSIVE);
     // rg_storage_scandir(app->paths.covers, scan_folder_cb3, app, RG_SCANDIR_RECURSIVE);
 
