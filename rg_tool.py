@@ -123,7 +123,9 @@ def _fat16_lfn_entries(long_name, short_name):
     chunks = [code_units[i:i + 13] for i in range(0, len(code_units), 13)]
     entries = []
     for index in range(len(chunks) - 1, -1, -1):
-        units = chunks[index] + [0x0000]
+        units = list(chunks[index])
+        if len(units) < 13:
+            units.append(0x0000)
         units += [0xFFFF] * (13 - len(units))
         ordinal = index + 1
         if index == len(chunks) - 1:
