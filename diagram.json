@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "author": "Jeka725",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {
+        "flashSize": "16",
+        "psramSize": "8",
+        "psramType": "octal"
+      }
+    },
+    {
+      "type": "chip-st7735",
+      "id": "display",
+      "top": -20,
+      "left": 280,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_up",
+      "top": 180,
+      "left": 40,
+      "attrs": {
+        "color": "green",
+        "label": "UP"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_down",
+      "top": 180,
+      "left": 120,
+      "attrs": {
+        "color": "green",
+        "label": "DOWN"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_left",
+      "top": 180,
+      "left": 200,
+      "attrs": {
+        "color": "green",
+        "label": "LEFT"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_right",
+      "top": 180,
+      "left": 280,
+      "attrs": {
+        "color": "green",
+        "label": "RIGHT"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_select",
+      "top": 180,
+      "left": 360,
+      "attrs": {
+        "color": "green",
+        "label": "SELECT"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:3V3",
+      "display:VCC",
+      "red"
+    ],
+    [
+      "esp:GND.1",
+      "display:GND",
+      "black"
+    ],
+    [
+      "esp:6",
+      "display:DIN",
+      "orange"
+    ],
+    [
+      "esp:5",
+      "display:SCK",
+      "yellow"
+    ],
+    [
+      "esp:16",
+      "display:CS",
+      "blue"
+    ],
+    [
+      "esp:7",
+      "display:DC",
+      "green"
+    ],
+    [
+      "esp:15",
+      "display:RST",
+      "purple"
+    ],
+    [
+      "esp:4",
+      "display:BLA",
+      "red"
+    ],
+    [
+      "esp:9",
+      "btn_up:1",
+      "green"
+    ],
+    [
+      "btn_up:2",
+      "esp:GND.1",
+      "black"
+    ],
+    [
+      "esp:11",
+      "btn_down:1",
+      "green"
+    ],
+    [
+      "btn_down:2",
+      "esp:GND.1",
+      "black"
+    ],
+    [
+      "esp:12",
+      "btn_left:1",
+      "green"
+    ],
+    [
+      "btn_left:2",
+      "esp:GND.1",
+      "black"
+    ],
+    [
+      "esp:13",
+      "btn_right:1",
+      "green"
+    ],
+    [
+      "btn_right:2",
+      "esp:GND.1",
+      "black"
+    ],
+    [
+      "esp:14",
+      "btn_select:1",
+      "green"
+    ],
+    [
+      "btn_select:2",
+      "esp:GND.1",
+      "black"
+    ]
+  ],
+  "dependencies": {
+    "chip-st7735": "github:martysweet/st7735-wokwi-chip@1.0.4"
+  }
+}
