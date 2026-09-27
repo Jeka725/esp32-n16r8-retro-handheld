@@ -201,6 +201,7 @@ static void retro_loop(void)
     bool redraw_pending = true;
     int64_t select_hold_start = 0;
     bool select_hold_back = false;
+    int64_t select_action_block_until = 0;
 
     gui_init(app->isColdBoot);
     applications_init();
@@ -330,6 +331,9 @@ static void retro_loop(void)
                         gui_event(TAB_BACK, tab);
                     else
                         gui.browse = false;
+                    // After using SELECT as the 2-second Back button, ignore SELECT
+                    // actions for 500 ms so the same press cannot immediately confirm.
+                    select_action_block_until = now + 500000;
                     redraw_pending = true;
                 }
             }
@@ -356,8 +360,10 @@ static void retro_loop(void)
 
         if (!(gui.joystick & RG_KEY_A) && (prev_joystick & RG_KEY_A) &&
             gui.browse && !select_hold_back) {
-            gui_event(TAB_ACTION, tab);
-            redraw_pending = true;
+            if (rg_system_timer() >= select_action_block_until) {
+                gui_event(TAB_ACTION, tab);
+                redraw_pending = true;
+            }
         }
         if (!(gui.joystick & RG_KEY_A)) {
             select_hold_start = 0;
