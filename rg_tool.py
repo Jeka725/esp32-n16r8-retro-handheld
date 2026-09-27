@@ -23,11 +23,7 @@ PROJECT_APPS = {
   'fmsx':         [0, 0, 589824],
   'gbsp':         [0, 0, 851968],
 }
-# PROJECT_APPS = {}
-# for t in glob.glob("*/CMakeLists.txt"):
-#     name = os.path.basename(os.path.dirname(t))
-#     if name not in PROJECT_APPS:
-#         PROJECT_APPS[name] = [0, 0, 0]
+
 try:
     PROJECT_VER = os.getenv("PROJECT_VER") or subprocess.check_output(
         "git describe --tags --abbrev=5 --dirty --always", shell=True
@@ -116,28 +112,46 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
 
     if fatsize:
         # The VFS partition is real FAT on the ESP32-S3's internal SPI flash.
-        # Populate it from the repository's roms/ directory so ROMs are available
-        # immediately after flashing; saves/settings remain writable at runtime.
+        # Package the two supported ROM files directly from the repository root.
+        # ZIP archives and other root files are intentionally not copied.
         fat_size = parse_size(fatsize)
-        fat_dir = os.path.abspath("roms")
-        os.makedirs(fat_dir, exist_ok=True)
-        fat_image = os.path.abspath("storage_fat.bin")
-        fatfsgen = os.path.join(IDF_PATH, "components", "fatfs", "wl_fatfsgen.py")
-        run([
-            sys.executable, fatfsgen,
-            "--output_file", fat_image,
-            "--partition_size", str(fat_size),
-            "--long_name_support",
-            "--use_default_datetime",
-            fat_dir,
-        ])
-        with open(fat_image, "rb") as f:
-            fat_data = f.read()
-        if len(fat_data) > fat_size:
-            raise RuntimeError("Generated FAT image is larger than the configured partition")
-        fat_data += b"\xFF" * (fat_size - len(fat_data))
-        table_csv.append("vfs, data, fat, %d, %d" % (len(image_data), fat_size))
-        image_data += fat_data
+        fat_dir = os.path.abspath(".")
+        rom_files = [
+            "Sonic The Hedgehog (USA, Europe).md",
+            "Super Mario Advance (USA, Europe).gba",
+        ]
+        missing = [name for name in rom_files if not os.path.isfile(os.path.join(fat_dir, name))]
+        if missing:
+            raise RuntimeError("Required root ROM file(s) missing: %s" % ", ".join(missing))
+
+        staging_dir = os.path.abspath(".roms_staging")
+        if os.path.exists(staging_dir):
+            shutil.rmtree(staging_dir)
+        os.makedirs(staging_dir)
+
+        try:
+            for name in rom_files:
+                shutil.copy2(os.path.join(fat_dir, name), os.path.join(staging_dir, name))
+
+            fat_image = os.path.abspath("storage_fat.bin")
+            fatfsgen = os.path.join(IDF_PATH, "components", "fatfs", "wl_fatfsgen.py")
+            run([
+                sys.executable, fatfsgen,
+                "--output_file", fat_image,
+                "--partition_size", str(fat_size),
+                "--long_name_support",
+                "--use_default_datetime",
+                staging_dir,
+            ])
+            with open(fat_image, "rb") as f:
+                fat_data = f.read()
+            if len(fat_data) > fat_size:
+                raise RuntimeError("Generated FAT image is larger than the configured partition")
+            fat_data += b"\xFF" * (fat_size - len(fat_data))
+            table_csv.append("vfs, data, fat, %d, %d" % (len(image_data), fat_size))
+            image_data += fat_data
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
 
     print("Generating partition table...")
     with open("partitions.csv", "w") as f:
@@ -186,7 +200,6 @@ def clean_app(app):
 
 
 def build_app(app, device_type, with_profiling=False, no_networking=False, is_release=False):
-    # To do: clean up if any of the flags changed since last build
     print("Building app '%s'" % app)
     args = [IDF_PY, "app"]
     args.append(f"-DRG_PROJECT_APP={app}")
@@ -230,40 +243,24 @@ def monitor_app(app, port, baudrate=115200):
     elf_file = os.path.join(os.getcwd(), app, "build", app + ".elf")
     if os.path.exists(elf_file):
         run([IDF_MONITOR_PY, "--port", port, elf_file])
-    else: # We must pass a file to idf_monitor.py but it doesn't have to be valid with -d
+    else:
         run([IDF_MONITOR_PY, "--port", port, "-d", sys.argv[0]])
 
 
 parser = argparse.ArgumentParser(description="Retro-Go build tool")
-parser.add_argument(
-# To do: Learn to use subcommands instead...
-    "command", choices=["build-fw", "build-img", "release", "build", "clean", "flash", "monitor", "run", "profile", "install"],
-)
-parser.add_argument(
-    "apps", nargs="*", default="all", choices=["all"] + list(PROJECT_APPS.keys())
-)
-parser.add_argument(
-    "--target", default=DEFAULT_TARGET, choices=set(TARGETS), help="Device to target"
-)
-parser.add_argument(
-    "--no-networking", action="store_const", const=True, help="Build without networking support"
-)
-parser.add_argument(
-    "--port", default=DEFAULT_PORT, help="Serial port to use for flash and monitor"
-)
-parser.add_argument(
-    "--baud", default=DEFAULT_BAUD, help="Serial baudrate to use for flashing"
-)
-parser.add_argument(
-    "--fatsize", help="Add FAT storage partition of provided size (500K, 5M,...) to the built image."
-)
+parser.add_argument("command", choices=["build-fw", "build-img", "release", "build", "clean", "flash", "monitor", "run", "profile", "install"])
+parser.add_argument("apps", nargs="*", default="all", choices=["all"] + list(PROJECT_APPS.keys()))
+parser.add_argument("--target", default=DEFAULT_TARGET, choices=set(TARGETS), help="Device to target")
+parser.add_argument("--no-networking", action="store_const", const=True, help="Build without networking support")
+parser.add_argument("--port", default=DEFAULT_PORT, help="Serial port to use for flash and monitor")
+parser.add_argument("--baud", default=DEFAULT_BAUD, help="Serial baudrate to use for flashing")
+parser.add_argument("--fatsize", help="Add FAT storage partition of provided size (500K, 5M,...) to the built image.")
 args = parser.parse_args()
 
 if os.path.exists(f"components/retro-go/targets/{args.target}/env.py"):
     with open(f"components/retro-go/targets/{args.target}/env.py", "rb") as f:
         prev_idf_target = os.getenv("IDF_TARGET")
         exec(f.read())
-         # Detect if env.py modified os.environ[IDF_TARGET] instead of IDF_TARGET (old behavior)
         if os.getenv("IDF_TARGET") != prev_idf_target:
             IDF_TARGET = os.getenv("IDF_TARGET")
 
@@ -273,7 +270,7 @@ os.putenv("IDF_TARGET", IDF_TARGET)
 
 command = args.command
 apps = DEFAULT_APPS.split() if "all" in args.apps else args.apps
-apps = [app for app in PROJECT_APPS.keys() if app in apps] # Ensure ordering and uniqueness
+apps = [app for app in PROJECT_APPS.keys() if app in apps]
 
 try:
     if command in ["build-fw", "build-img", "release", "install"] and "launcher" not in apps:
@@ -305,7 +302,6 @@ try:
 
     if command in ["install"]:
         print("=== Step: Flashing entire image to device ===\n")
-        # Should probably show a warning here and ask for confirmation...
         img_file = ("%s_%s_%s.img" % (PROJECT_NAME, PROJECT_VER, args.target)).lower()
         flash_image(img_file, args.port, args.baud)
 
