@@ -366,12 +366,15 @@ static void tab_refresh(tab_t *tab, const char *selected)
     if (items_count == 0)
     {
         gui_resize_list(tab, 6);
-        sprintf(tab->listbox.items[0].text, _("Welcome to Retro-Go!"));
+        // Keep the empty-state text inside the 160x128 landscape UI.
+        // The old generic strings were wider than the ST7735S screen and
+        // were visibly clipped (for example: "Place roms in folder: /ro...").
+        sprintf(tab->listbox.items[0].text, _("No games found"));
         sprintf(tab->listbox.items[1].text, " ");
-        sprintf(tab->listbox.items[2].text, _("Place roms in folder: %s"), rg_relpath(app->paths.roms));
-        sprintf(tab->listbox.items[3].text, _("With file extension: %s"), app->extensions);
-        sprintf(tab->listbox.items[4].text, " ");
-        sprintf(tab->listbox.items[5].text, _("You can hide this tab in the menu"));
+        sprintf(tab->listbox.items[2].text, _("Internal flash"));
+        sprintf(tab->listbox.items[3].text, _("Folder: /sd/%s"), app->short_name);
+        sprintf(tab->listbox.items[4].text, _("File: %s"), app->extensions);
+        sprintf(tab->listbox.items[5].text, _("Hold A 2s = Back"));
         tab->listbox.cursor = 4;
     }
     else if (selected)
