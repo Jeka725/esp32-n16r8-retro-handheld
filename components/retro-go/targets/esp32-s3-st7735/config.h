@@ -29,7 +29,7 @@
 // modules whose visible glass starts at a non-zero GRAM offset.
 #define RG_ST7735_XSTART            0
 #define RG_ST7735_YSTART            0
-#define RG_ST7735_MADCTL            0x68
+#define RG_ST7735_MADCTL            0xA8
 
 #define RG_GPIO_LCD_MISO            GPIO_NUM_NC
 #define RG_GPIO_LCD_MOSI            GPIO_NUM_6
