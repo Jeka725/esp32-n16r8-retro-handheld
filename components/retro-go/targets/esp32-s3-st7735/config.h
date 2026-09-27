@@ -4,7 +4,7 @@
 #define RG_TARGET_NAME              "ESP32-S3 N16R8 ST7735S 128x160"
 
 // Internal flash storage. The image builder creates the "vfs" FAT partition.
-#define RG_STORAGE_ROOT             "/storage"
+#define RG_STORAGE_ROOT             "/sd"
 #define RG_STORAGE_FLASH_PARTITION  "vfs"
 
 // Audio: passive/active buzzer on GPIO10.
@@ -39,8 +39,7 @@
 #define RG_GPIO_LCD_RST             GPIO_NUM_15
 #define RG_GPIO_LCD_BCKL            GPIO_NUM_4
 
-// Buttons.
-#undef RG_GAMEPAD_ADC_MAP
+// Buttons: UP=9, DOWN=11, LEFT=12, RIGHT=13, SELECT/A=14.\n// SELECT/A short press selects; holding it for 2 seconds is handled by the launcher as Back.\n// Buttons.\n#undef RG_GAMEPAD_ADC_MAP
 #define RG_GAMEPAD_GPIO_MAP {\
     {RG_KEY_UP,     .num = GPIO_NUM_9,  .pullup = 1, .level = 0},\
     {RG_KEY_DOWN,   .num = GPIO_NUM_11, .pullup = 1, .level = 0},\
@@ -49,11 +48,10 @@
     {RG_KEY_A,      .num = GPIO_NUM_14, .pullup = 1, .level = 0},\
 }
 
-// Display defaults: fill the entire panel. This intentionally stretches
-// emulator frames when their aspect ratio differs from 128x160.
+// Display defaults preserve emulator aspect ratio and fit inside the 160x128 landscape panel.
 // The panel image is rotated 180 degrees by ST7735 MADCTL above.
 #ifndef RG_DISPLAY_DEFAULT_SCALING
-#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FULL
+#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FIT
 #endif
 #define RG_DISPLAY_DEFAULT_FILTER  RG_DISPLAY_FILTER_BOTH
 
