@@ -199,6 +199,8 @@ static void retro_loop(void)
     int change_tab = 0;
     int browse_last = -1;
     bool redraw_pending = true;
+    int64_t select_hold_start = 0;
+    bool select_hold_back = false;
 
     gui_init(app->isColdBoot);
     applications_init();
@@ -316,8 +318,20 @@ static void retro_loop(void)
                 redraw_pending = true;
             }
             else if (joystick == RG_KEY_A) {
-                gui_event(TAB_ACTION, tab);
-                redraw_pending = true;
+                // Short press = select/confirm; hold SELECT/A for 2 seconds = back.
+                int64_t now = rg_system_timer();
+                if (!(prev_joystick & RG_KEY_A)) {
+                    select_hold_start = now;
+                    select_hold_back = false;
+                } else if (!select_hold_back && select_hold_start &&
+                           (now - select_hold_start) >= 2000000) {
+                    select_hold_back = true;
+                    if (tab->navpath)
+                        gui_event(TAB_BACK, tab);
+                    else
+                        gui.browse = false;
+                    redraw_pending = true;
+                }
             }
             else if (joystick == RG_KEY_B) {
                 if (tab->navpath)
@@ -338,6 +352,16 @@ static void retro_loop(void)
             else if (joystick == RG_KEY_A) {
                 gui.browse = true;
             }
+        }
+
+        if (!(gui.joystick & RG_KEY_A) && (prev_joystick & RG_KEY_A) &&
+            gui.browse && !select_hold_back) {
+            gui_event(TAB_ACTION, tab);
+            redraw_pending = true;
+        }
+        if (!(gui.joystick & RG_KEY_A)) {
+            select_hold_start = 0;
+            select_hold_back = false;
         }
 
         if (redraw_pending)
