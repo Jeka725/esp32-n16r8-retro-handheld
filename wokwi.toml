@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = 'launcher/build/launcher.bin'
+elf = 'launcher/build/launcher.elf'
