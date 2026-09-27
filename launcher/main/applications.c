@@ -105,12 +105,10 @@ static void application_init(retro_app_t *app)
     rg_storage_mkdir(app->paths.saves);
     rg_storage_mkdir(app->paths.roms);
 
+    // With the internal-flash target, /sd itself is the ROM volume.
+    // This keeps the normal Retro-Go path logic intact while making the
+    // firmware behave exactly like it had an SD card mounted at /sd.
     rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE);
-#ifdef RG_STORAGE_FLASH_PARTITION
-    // Bundled ROMs live in the internal-flash FAT image. Scan its root as a
-    // compatibility layer so the launcher can use the same files without SD.
-    rg_storage_scandir(RG_STORAGE_ROOT, scan_folder_cb, app, 0);
-#endif
     rg_storage_scandir(app->paths.saves, scan_saves_cb, app, RG_SCANDIR_RECURSIVE);
     // rg_storage_scandir(app->paths.covers, scan_folder_cb3, app, RG_SCANDIR_RECURSIVE);
 
@@ -673,7 +671,14 @@ static void application(const char *desc, const char *name, const char *exts, co
     snprintf(app->extensions, sizeof(app->extensions), " %s ", exts);
     snprintf(app->paths.covers, RG_PATH_MAX, RG_BASE_PATH_COVERS "/%s", app->short_name);
     snprintf(app->paths.saves, RG_PATH_MAX, RG_BASE_PATH_SAVES "/%s", app->short_name);
+#ifdef RG_STORAGE_FLASH_PARTITION
+    // No physical SD card exists on this board. The read-only FAT partition
+    // mounted at /sd is the ROM library, so every emulator uses that same
+    // volume and its extension filter selects the appropriate games.
+    snprintf(app->paths.roms, RG_PATH_MAX, "%s", RG_STORAGE_ROOT);
+#else
     snprintf(app->paths.roms, RG_PATH_MAX, RG_BASE_PATH_ROMS "/%s", app->short_name);
+#endif
     app->available = rg_system_have_app(app->partition);
     app->files = calloc(100, sizeof(retro_file_t));
     app->files_capacity = 100;
