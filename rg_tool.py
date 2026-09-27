@@ -137,9 +137,9 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
             # ESP-IDF 4.4 predates wl_fatfsgen.py. Build a raw FAT16 image
             # with mkfs.fat + mtools; the firmware mounts it read-only.
             run(["dd", "if=/dev/zero", "of=" + fat_image, "bs=1M", "count=" + str(fat_size // (1024 * 1024))])
-            run(["mkfs.fat", "-F", "16", "-n", "RETROGO", fat_image])
+            run(["/usr/sbin/mkfs.fat", "-F", "16", "-n", "RETROGO", fat_image])
             for name in rom_files:
-                run(["mcopy", "-i", fat_image, os.path.join(staging_dir, name), "::"])
+                run(["/usr/bin/mcopy", "-i", fat_image, os.path.join(staging_dir, name), "::"])
             with open(fat_image, "rb") as f:
                 fat_data = f.read()
             if len(fat_data) > fat_size:
