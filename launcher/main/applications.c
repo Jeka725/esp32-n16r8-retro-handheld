@@ -480,7 +480,8 @@ bool application_path_to_file(const char *path, retro_file_t *file)
     for (int i = 0; i < apps_count; ++i)
     {
         size_t baselen = strlen(apps[i]->paths.roms);
-        if (strncmp(path, apps[i]->paths.roms, baselen) == 0 && path[baselen] == '/')
+        if (strncmp(path, apps[i]->paths.roms, baselen) == 0 && path[baselen] == '/' &&
+            rg_extension_match(rg_basename(path), apps[i]->extensions))
         {
             *file = (retro_file_t) {
                 .name = strdup(rg_basename(path)),
