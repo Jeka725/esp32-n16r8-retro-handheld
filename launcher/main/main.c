@@ -453,7 +453,7 @@ void app_main(void)
     if (!rg_storage_ready())
     {
         rg_display_clear(C_SKY_BLUE);
-        rg_gui_alert(_("SD Card Error"), _("Storage mount failed.\nMake sure the card is FAT32."));
+        rg_gui_alert(_("Internal Flash Error"), _("Storage mount failed.\nThe internal FAT storage could not be mounted."));
     }
     else
     {
