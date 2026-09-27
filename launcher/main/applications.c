@@ -108,7 +108,7 @@ static void application_init(retro_app_t *app)
     // With the internal-flash target, /sd itself is the ROM volume.
     // This keeps the normal Retro-Go path logic intact while making the
     // firmware behave exactly like it had an SD card mounted at /sd.
-    rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE);
+    rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE | RG_SCANDIR_STAT);
     rg_storage_scandir(app->paths.saves, scan_saves_cb, app, RG_SCANDIR_RECURSIVE);
     // rg_storage_scandir(app->paths.covers, scan_folder_cb3, app, RG_SCANDIR_RECURSIVE);
 
@@ -370,7 +370,7 @@ static void tab_refresh(tab_t *tab, const char *selected)
         sprintf(tab->listbox.items[0].text, _("No games found"));
         sprintf(tab->listbox.items[1].text, " ");
         sprintf(tab->listbox.items[2].text, _("Internal flash"));
-        sprintf(tab->listbox.items[3].text, _("Folder: /sd/%s"), app->short_name);
+        sprintf(tab->listbox.items[3].text, _("Folder: %s"), app->paths.roms);
         sprintf(tab->listbox.items[4].text, _("File: %s"), app->extensions);
         sprintf(tab->listbox.items[5].text, _("Hold A 2s = Back"));
         tab->listbox.cursor = 4;
