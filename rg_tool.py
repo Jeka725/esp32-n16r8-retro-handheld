@@ -134,7 +134,13 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
                 shutil.copy2(os.path.join(fat_dir, name), os.path.join(staging_dir, name))
 
             fat_image = os.path.abspath("storage_fat.bin")
-            # ESP-IDF 4.4 predates wl_fatfsgen.py. Build a raw FAT16 image\n            # with mkfs.fat + mtools; the firmware mounts it read-only.\n            run(["dd", "if=/dev/zero", "of=" + fat_image, "bs=1M", "count=" + str(fat_size // (1024 * 1024))])\n            run(["mkfs.fat", "-F", "16", "-n", "RETROGO", fat_image])\n            for name in rom_files:\n                run(["mcopy", "-i", fat_image, os.path.join(staging_dir, name), "::"])\n            with open(fat_image, "rb") as f:
+            # ESP-IDF 4.4 predates wl_fatfsgen.py. Build a raw FAT16 image
+            # with mkfs.fat + mtools; the firmware mounts it read-only.
+            run(["dd", "if=/dev/zero", "of=" + fat_image, "bs=1M", "count=" + str(fat_size // (1024 * 1024))])
+            run(["mkfs.fat", "-F", "16", "-n", "RETROGO", fat_image])
+            for name in rom_files:
+                run(["mcopy", "-i", fat_image, os.path.join(staging_dir, name), "::"])
+            with open(fat_image, "rb") as f:
                 fat_data = f.read()
             if len(fat_data) > fat_size:
                 raise RuntimeError("Generated FAT image is larger than the configured partition")
