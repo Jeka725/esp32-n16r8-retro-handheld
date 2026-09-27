@@ -306,6 +306,8 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
         rom_files = [
             "Sonic The Hedgehog (USA, Europe).md",
             "Super Mario Advance (USA, Europe).gba",
+            # Doom IWAD: bundled into the same internal-flash FAT volume.
+            "prboom-go/components/prboom/data/doom1.wad",
         ]
         missing = [name for name in rom_files if not os.path.isfile(os.path.join(fat_dir, name))]
         if missing:
