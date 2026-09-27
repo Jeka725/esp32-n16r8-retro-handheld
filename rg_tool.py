@@ -94,7 +94,17 @@ def parse_size(value):
 
 
 def _fat16_short_name(long_name, used_names):
-    """Create a unique 8.3 alias for a root-directory FAT16 file."""
+    """Create a stable 8.3 alias for bundled root ROMs."""
+    aliases = {
+        "Sonic The Hedgehog (USA, Europe).md": b"SONIC   MD ",
+        "Super Mario Advance (USA, Europe).gba": b"MARIO   GBA",
+        "doom1.wad": b"DOOM    WAD",
+    }
+    if long_name in aliases:
+        candidate = aliases[long_name]
+        if candidate not in used_names:
+            return candidate
+
     stem, ext = os.path.splitext(os.path.basename(long_name))
     stem = "".join(ch for ch in stem.upper() if ch.isalnum())
     ext = "".join(ch for ch in ext[1:].upper() if ch.isalnum())[:3]
