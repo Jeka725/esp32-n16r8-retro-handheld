@@ -264,7 +264,7 @@ static void retro_loop(void)
             select_hold_back = false;
         }
         else if (a_down && select_hold_start && !select_hold_back &&
-                 (now - select_hold_start) >= 2000000)
+                 (now - select_hold_start) >= 1000000)
         {
             select_hold_back = true;
             if (gui.browse)
@@ -274,7 +274,7 @@ static void retro_loop(void)
                 else
                     gui.browse = false;
             }
-            select_action_block_until = INT64_MAX;
+            select_action_block_until = now + 500000;
             redraw_pending = true;
         }
 
@@ -325,6 +325,11 @@ static void retro_loop(void)
 
         if (gui.browse)
         {
+            // After a long-press Back, suppress the physical SELECT/A key
+            // until the 500 ms release lockout has expired.
+            if ((joystick & RG_KEY_A) && rg_system_timer() < select_action_block_until)
+                joystick &= ~RG_KEY_A;
+
             if (joystick == RG_KEY_SELECT) {
                 change_tab = -1;
             }
