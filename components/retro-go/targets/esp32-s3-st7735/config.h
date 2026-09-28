@@ -40,7 +40,7 @@
 #define RG_GPIO_LCD_BCKL            GPIO_NUM_4
 
 // Buttons: UP=9, DOWN=11, LEFT=12, RIGHT=13, SELECT/A=14.
-// SELECT/A short press selects; holding it for 2 seconds is Back.
+// SELECT/A short press selects; holding it for 1 second is Back.
 // After Back, selection is blocked for 500 ms so releasing SELECT cannot
 // immediately activate the selected item.
 #undef RG_GAMEPAD_ADC_MAP
