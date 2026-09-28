@@ -74,43 +74,6 @@ static int scan_folder_cb(const rg_scandir_t *entry, void *arg)
     return RG_SCANDIR_CONTINUE;
 }
 
-static void add_builtin_rom(retro_app_t *app, const char *name)
-{
-    if (!rg_extension_match(name, app->extensions))
-        return;
-
-    if (app->files_count >= app->files_capacity)
-        return;
-
-    app->files[app->files_count++] = (retro_file_t) {
-        .name = strdup(name),
-        .folder = rg_unique_string(RG_STORAGE_ROOT),
-        .checksum = 0,
-        .missing_cover = 0,
-        .saves = 0,
-        .type = RETRO_TYPE_FILE,
-        .app = app,
-    };
-
-    RG_LOGI("Built-in ROM registered: %s/%s", RG_STORAGE_ROOT, name);
-}
-
-static void load_builtin_rom_catalog(retro_app_t *app)
-{
-#ifdef RG_STORAGE_FLASH_PARTITION
-    // Internal flash is a fixed ROM volume. Do not enumerate FAT directory
-    // entries: raw-flash/FatFs combinations can disagree on LFN/d_type/stat.
-    // The image builder guarantees these exact 8.3 files are present.
-    if (strcmp(app->short_name, "doom") == 0)
-        add_builtin_rom(app, "DOOM.WAD");
-    else if (strcmp(app->short_name, "gba") == 0)
-        add_builtin_rom(app, "MARIO.GBA");
-    else if (strcmp(app->short_name, "md") == 0)
-        add_builtin_rom(app, "SONIC.MD");
-#endif
-}
-
-
 static int scan_saves_cb(const rg_scandir_t *entry, void *arg)
 {
     if (entry->is_file && rg_extension_match(entry->basename, "sav"))
@@ -142,14 +105,7 @@ static void application_init(retro_app_t *app)
     rg_storage_mkdir(app->paths.saves);
     rg_storage_mkdir(app->paths.roms);
 
-    // With the internal-flash target, /sd itself is the ROM volume.
-    // This keeps the normal Retro-Go path logic intact while making the
-    // firmware behave exactly like it had an SD card mounted at /sd.
-#ifdef RG_STORAGE_FLASH_PARTITION
-    load_builtin_rom_catalog(app);
-#else
-    rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE | RG_SCANDIR_STAT);
-#endif
+    rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE);
     rg_storage_scandir(app->paths.saves, scan_saves_cb, app, RG_SCANDIR_RECURSIVE);
     // rg_storage_scandir(app->paths.covers, scan_folder_cb3, app, RG_SCANDIR_RECURSIVE);
 
@@ -405,15 +361,12 @@ static void tab_refresh(tab_t *tab, const char *selected)
     if (items_count == 0)
     {
         gui_resize_list(tab, 6);
-        // Keep the empty-state text inside the 160x128 landscape UI.
-        // The old generic strings were wider than the ST7735S screen and
-        // were visibly clipped (for example: "Place roms in folder: /ro...").
-        sprintf(tab->listbox.items[0].text, _("No games found"));
+        sprintf(tab->listbox.items[0].text, _("Welcome to Retro-Go!"));
         sprintf(tab->listbox.items[1].text, " ");
-        sprintf(tab->listbox.items[2].text, _("Internal flash"));
-        sprintf(tab->listbox.items[3].text, _("Folder: %s"), app->paths.roms);
-        sprintf(tab->listbox.items[4].text, _("File: %s"), app->extensions);
-        sprintf(tab->listbox.items[5].text, _("Hold A 2s = Back"));
+        sprintf(tab->listbox.items[2].text, _("Place roms in folder: %s"), rg_relpath(app->paths.roms));
+        sprintf(tab->listbox.items[3].text, _("With file extension: %s"), app->extensions);
+        sprintf(tab->listbox.items[4].text, " ");
+        sprintf(tab->listbox.items[5].text, _("You can hide this tab in the menu"));
         tab->listbox.cursor = 4;
     }
     else if (selected)
@@ -521,8 +474,7 @@ bool application_path_to_file(const char *path, retro_file_t *file)
     for (int i = 0; i < apps_count; ++i)
     {
         size_t baselen = strlen(apps[i]->paths.roms);
-        if (strncmp(path, apps[i]->paths.roms, baselen) == 0 && path[baselen] == '/' &&
-            rg_extension_match(rg_basename(path), apps[i]->extensions))
+        if (strncmp(path, apps[i]->paths.roms, baselen) == 0 && path[baselen] == '/')
         {
             *file = (retro_file_t) {
                 .name = strdup(rg_basename(path)),
@@ -713,14 +665,7 @@ static void application(const char *desc, const char *name, const char *exts, co
     snprintf(app->extensions, sizeof(app->extensions), " %s ", exts);
     snprintf(app->paths.covers, RG_PATH_MAX, RG_BASE_PATH_COVERS "/%s", app->short_name);
     snprintf(app->paths.saves, RG_PATH_MAX, RG_BASE_PATH_SAVES "/%s", app->short_name);
-#ifdef RG_STORAGE_FLASH_PARTITION
-    // No physical SD card exists on this board. The read-only FAT partition
-    // mounted at /sd is the ROM library, so every emulator uses that same
-    // volume and its extension filter selects the appropriate games.
-    snprintf(app->paths.roms, RG_PATH_MAX, "%s", RG_STORAGE_ROOT);
-#else
     snprintf(app->paths.roms, RG_PATH_MAX, RG_BASE_PATH_ROMS "/%s", app->short_name);
-#endif
     app->available = rg_system_have_app(app->partition);
     app->files = calloc(100, sizeof(retro_file_t));
     app->files_capacity = 100;

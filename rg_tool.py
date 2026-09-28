@@ -166,20 +166,16 @@ def _fat12_set_entry(fat, cluster, value):
         fat[offset + 1] = (fat[offset + 1] & 0xF0) | ((value >> 8) & 0x0F)
 
 
-def _build_fat16_image(output_file, file_paths, image_size):
-    """Build a raw FAT12 image using the 4096-byte logical sectors of raw SPI flash.
+def _build_fat16_image(output_file, file_specs, image_size):
+    """Build a FAT12 image using 4096-byte raw-flash sectors.
 
-    The ESP-IDF 4.4 raw-flash disk driver exposes the flash erase sector as the
-    FAT logical sector. A 10 MiB partition therefore has 2560 logical sectors,
-    which is FAT12-sized, not FAT16-sized.
+    The directory tree mirrors a normal Retro-Go SD card:
+      /retro-go/roms/<app>/<rom>
     """
     sector_size = 4096
     if image_size % sector_size:
         raise RuntimeError("FAT image size must be aligned to the flash sector size")
     total_sectors = image_size // sector_size
-    if total_sectors < 4 or total_sectors > 0xFFFF:
-        raise RuntimeError("FAT12 image has an invalid sector count")
-
     reserved_sectors = 1
     fat_count = 2
     root_entries = 128
@@ -195,12 +191,10 @@ def _build_fat16_image(output_file, file_paths, image_size):
         if needed == fat_sectors:
             break
         fat_sectors = needed
-
     if cluster_count > 4084:
-        raise RuntimeError("Configured image does not fit FAT12 cluster limits")
+        raise RuntimeError("Configured image does not fit FAT12 limits")
 
     image = bytearray(b"\xFF" * image_size)
-
     image[0:3] = b"\xEB\x3C\x90"
     image[3:11] = b"MSDOS5.0"
     struct.pack_into("<H", image, 11, sector_size)
@@ -213,8 +207,6 @@ def _build_fat16_image(output_file, file_paths, image_size):
     struct.pack_into("<H", image, 22, fat_sectors)
     struct.pack_into("<H", image, 24, 32)
     struct.pack_into("<H", image, 26, 64)
-    struct.pack_into("<I", image, 28, 0)
-    struct.pack_into("<I", image, 32, 0)
     image[36] = 0x80
     image[38] = 0x29
     struct.pack_into("<I", image, 39, 0x5254474F)
@@ -232,62 +224,119 @@ def _build_fat16_image(output_file, file_paths, image_size):
     data_offset = root_offset + root_dir_sectors * sector_size
     root = bytearray(root_dir_sectors * sector_size)
 
-    used_short_names = set()
-    root_pos = 0
+    def short_name(name):
+        aliases = {
+            "retro-go": b"RETRO-GO   ",
+            "roms": b"ROMS       ",
+            "gba": b"GBA        ",
+            "md": b"MD         ",
+            "doom": b"DOOM       ",
+        }
+        if name.lower() in aliases:
+            return aliases[name.lower()]
+        stem, ext = os.path.splitext(os.path.basename(name))
+        stem = re.sub(r"[^A-Za-z0-9]", "", stem).upper() or "ROM"
+        ext = re.sub(r"[^A-Za-z0-9]", "", ext[1:]).upper()[:3]
+        return (stem[:8].ljust(8) + ext.ljust(3)).encode("ascii")
+
+    normalized = []
+    for rel, src in file_specs:
+        parts = [p for p in rel.replace("\\", "/").strip("/").split("/") if p]
+        if len(parts) < 2:
+            raise RuntimeError("ROM path must include a directory: %s" % rel)
+        normalized.append((parts, src))
+
+    dirs = {tuple()}
+    for parts, _src in normalized:
+        for n in range(1, len(parts)):
+            dirs.add(tuple(parts[:n]))
+
     next_cluster = 2
+    dir_cluster = {}
+    for d in sorted(dirs, key=lambda x: (len(x), x)):
+        dir_cluster[d] = next_cluster
+        _fat12_set_entry(fat, next_cluster, 0xFFF)
+        next_cluster += 1
 
-    for path in file_paths:
-        name = os.path.basename(path)
-        size = os.path.getsize(path)
-        clusters_needed = max(1, (size + sector_size - 1) // sector_size)
-        if next_cluster + clusters_needed - 2 > cluster_count:
+    children = {d: [] for d in dirs}
+    for parts, src in normalized:
+        children[tuple(parts[:-1])].append(("file", parts[-1], src, tuple(parts)))
+    for d in dirs:
+        if d:
+            children[tuple(d[:-1])].append(("dir", d[-1], None, d))
+
+    file_meta = {}
+    for kind, name, src, full in sum(children.values(), []):
+        if kind != "file":
+            continue
+        size = os.path.getsize(src)
+        clusters = max(1, (size + sector_size - 1) // sector_size)
+        if next_cluster + clusters - 2 > cluster_count:
             raise RuntimeError("FAT image is too small for bundled files")
-
-        short_name = _fat16_short_name(name, used_short_names)
-        used_short_names.add(short_name)
-        lfn_entries = _fat16_lfn_entries(name, short_name)
-        entry_count = len(lfn_entries) + 1
-        if root_pos + entry_count * 32 > len(root) - 32:
-            raise RuntimeError("FAT root directory is full")
-
-        first_cluster = next_cluster
-        for cluster in range(first_cluster, first_cluster + clusters_needed):
-            next_value = 0xFFF if cluster == first_cluster + clusters_needed - 1 else cluster + 1
-            _fat12_set_entry(fat, cluster, next_value)
-
-        with open(path, "rb") as src:
+        first = next_cluster
+        for cluster in range(first, first + clusters):
+            _fat12_set_entry(fat, cluster, 0xFFF if cluster == first + clusters - 1 else cluster + 1)
+        with open(src, "rb") as fp:
             remaining = size
-            cluster = first_cluster
+            cluster = first
             while remaining:
-                chunk = src.read(sector_size)
+                chunk = fp.read(sector_size)
                 if not chunk:
-                    raise RuntimeError("Unexpected EOF while packaging %s" % name)
-                offset = data_offset + (cluster - 2) * sector_size
-                image[offset:offset + len(chunk)] = chunk
+                    raise RuntimeError("Unexpected EOF while packaging %s" % src)
+                off = data_offset + (cluster - 2) * sector_size
+                image[off:off + len(chunk)] = chunk
                 remaining -= len(chunk)
                 cluster += 1
+        file_meta[full] = (first, size)
+        next_cluster += clusters
 
-        for entry in lfn_entries:
-            root[root_pos:root_pos + 32] = entry
-            root_pos += 32
+    def add_entry(buf, pos, name, attr, cluster, size=0, lfn=True):
+        short = short_name(name)
+        if lfn and attr == 0x20:
+            for e in _fat16_lfn_entries(name, short):
+                if pos + 32 > len(buf) - 32:
+                    raise RuntimeError("Directory is full")
+                buf[pos:pos+32] = e
+                pos += 32
+        ent = bytearray(32)
+        ent[0:11] = short
+        ent[11] = attr
+        struct.pack_into("<H", ent, 26, cluster)
+        if attr == 0x20:
+            struct.pack_into("<I", ent, 28, size)
+        buf[pos:pos+32] = ent
+        return pos + 32
 
-        entry = bytearray(32)
-        entry[0:11] = short_name
-        entry[11] = 0x20
-        struct.pack_into("<H", entry, 26, first_cluster)
-        struct.pack_into("<I", entry, 28, size)
-        root[root_pos:root_pos + 32] = entry
-        root_pos += 32
-        next_cluster += clusters_needed
+    def write_dir(d):
+        buf = root if not d else bytearray(sector_size)
+        pos = 0
+        if d:
+            for dot, cl in [(".", dir_cluster[d]), ("..", dir_cluster[tuple(d[:-1])] if len(d) > 1 else 0)]:
+                ent = bytearray(32)
+                ent[0:11] = (dot + " " * 11)[:11].encode("ascii")
+                ent[11] = 0x10
+                struct.pack_into("<H", ent, 26, cl)
+                buf[pos:pos+32] = ent
+                pos += 32
+        for kind, name, src, full in children.get(d, []):
+            if kind == "dir":
+                pos = add_entry(buf, pos, name, 0x10, dir_cluster[full], lfn=False)
+            else:
+                first, size = file_meta[full]
+                pos = add_entry(buf, pos, name, 0x20, first, lfn=True)
+                struct.pack_into("<I", buf, pos-4, size)
+        if d:
+            off = data_offset + (dir_cluster[d] - 2) * sector_size
+            image[off:off+sector_size] = buf
+
+    for d in sorted(dirs, key=lambda x: (len(x), x), reverse=True):
+        write_dir(d)
+    write_dir(tuple())
 
     image[fat_offset:fat_offset + fat_bytes] = fat
-    second_fat_offset = fat_offset + fat_bytes
-    image[second_fat_offset:second_fat_offset + fat_bytes] = fat
-    image[root_offset:root_offset + len(root)] = root
-
+    image[fat_offset + fat_bytes:fat_offset + 2 * fat_bytes] = fat
     with open(output_file, "wb") as dst:
         dst.write(image)
-
 
 
 def build_image(output_file, apps, img_format="esp32", fatsize=0):
@@ -309,30 +358,25 @@ def build_image(output_file, apps, img_format="esp32", fatsize=0):
         image_data += data + b"\xFF" * (part_size - len(data))
 
     if fatsize:
-        # The VFS partition is real FAT on the ESP32-S3's internal SPI flash.
-        # Package the two supported ROM files directly from the repository root.
-        # ZIP archives and other root files are intentionally not copied.
+        # Bundle ROMs exactly where the original Retro-Go launcher expects them.
         fat_size = parse_size(fatsize)
-        fat_dir = os.path.abspath(".")
-        rom_files = [
-            "Sonic The Hedgehog (USA, Europe).md",
-            "Super Mario Advance (USA, Europe).gba",
-            # Doom IWAD: bundled into the same internal-flash FAT volume.
-            "prboom-go/components/prboom/data/doom1.wad",
+        root = os.path.abspath(".")
+        rom_specs = [
+            ("retro-go/roms/md/Sonic The Hedgehog (USA, Europe).md",
+             os.path.join(root, "Sonic The Hedgehog (USA, Europe).md")),
+            ("retro-go/roms/gba/Super Mario Advance (USA, Europe).gba",
+             os.path.join(root, "Super Mario Advance (USA, Europe).gba")),
+            ("retro-go/roms/doom/doom1.wad",
+             os.path.join(root, "prboom-go", "components", "prboom", "data", "doom1.wad")),
         ]
-        missing = [name for name in rom_files if not os.path.isfile(os.path.join(fat_dir, name))]
+        missing = [src for _rel, src in rom_specs if not os.path.isfile(src)]
         if missing:
-            raise RuntimeError("Required root ROM file(s) missing: %s" % ", ".join(missing))
-
+            raise RuntimeError("Required bundled ROM file(s) missing: %s" % ", ".join(missing))
         fat_image = os.path.abspath("storage_fat.bin")
-        # Build a raw FAT16 image with the Python standard library.
-        # This is mounted read-only by ESP-IDF 4.4 and avoids host-tool dependencies.
-        rom_paths = [os.path.join(fat_dir, name) for name in rom_files]
-        _build_fat16_image(fat_image, rom_paths, fat_size)
+        _build_fat16_image(fat_image, rom_specs, fat_size)
         with open(fat_image, "rb") as f:
-            fat_data = f.read()
-        table_csv.append("vfs, data, fat, %d, %d" % (len(image_data), fat_size))
-        image_data += fat_data
+            image_data += f.read()
+        table_csv.append("vfs, data, fat, %d, %d" % (len(image_data) - fat_size, fat_size))
 
     print("Generating partition table...")
     with open("partitions.csv", "w") as f:

@@ -394,34 +394,12 @@ bool rg_storage_scandir(const char *path, rg_scandir_cb_t *callback, void *arg, 
         flags |= RG_SCANDIR_STAT;
     #endif
 
-        if (flags & RG_SCANDIR_STAT)
+        if ((flags & RG_SCANDIR_STAT) && stat(result->path, &statbuf) == 0)
         {
-            // FAT on raw SPI flash may report DT_UNKNOWN. Prefer stat(), but
-            // never throw away a valid d_type result if stat() fails.
-            if (stat(result->path, &statbuf) == 0)
-            {
-                result->is_file = S_ISREG(statbuf.st_mode);
-                result->is_dir = S_ISDIR(statbuf.st_mode);
-                result->size = statbuf.st_size;
-                result->mtime = statbuf.st_mtime;
-            }
-        }
-
-        // Some ESP-IDF/FatFs combinations return neither a useful d_type nor
-        // stat() information for a directory entry. As a last resort, try
-        // opening the path as a directory; if that fails, treat it as a file.
-        if (!result->is_file && !result->is_dir)
-        {
-            DIR *subdir = opendir(result->path);
-            if (subdir)
-            {
-                result->is_dir = true;
-                closedir(subdir);
-            }
-            else
-            {
-                result->is_file = true;
-            }
+            result->is_file = S_ISREG(statbuf.st_mode);
+            result->is_dir = S_ISDIR(statbuf.st_mode);
+            result->size = statbuf.st_size;
+            result->mtime = statbuf.st_mtime;
         }
 
         if ((result->is_dir && types != RG_SCANDIR_FILES) || (result->is_file && types != RG_SCANDIR_DIRS))
