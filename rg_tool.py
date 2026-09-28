@@ -94,7 +94,7 @@ def parse_size(value):
 
 
 def _fat16_short_name(long_name, used_names):
-    """Create a stable 8.3 alias for bundled root ROMs."""
+    """Return deterministic 8.3 names for the built-in ROM catalog."""
     aliases = {
         "Sonic The Hedgehog (USA, Europe).md": b"SONIC   MD ",
         "Super Mario Advance (USA, Europe).gba": b"MARIO   GBA",
@@ -106,20 +106,21 @@ def _fat16_short_name(long_name, used_names):
             return candidate
 
     stem, ext = os.path.splitext(os.path.basename(long_name))
-    stem = "".join(ch for ch in stem.upper() if ch.isalnum())
-    ext = "".join(ch for ch in ext[1:].upper() if ch.isalnum())[:3]
-    base = (stem[:8] or "FILE")
-    candidate = (base.ljust(8) + ext.ljust(3)).encode("ascii")
+    stem = re.sub(r"[^A-Za-z0-9]", "", stem).upper() or "ROM"
+    ext = re.sub(r"[^A-Za-z0-9]", "", ext[1:]).upper()[:3]
+    stem = stem[:8]
+    candidate = (stem.ljust(8) + ext.ljust(3)).encode("ascii")
     if candidate not in used_names:
         return candidate
-    for n in range(1, 100):
-        tail = "~%d" % n
-        base_n = (stem[:8 - len(tail)] + tail)[:8]
-        candidate = (base_n.ljust(8) + ext.ljust(3)).encode("ascii")
+
+    for index in range(1, 100):
+        suffix = str(index)
+        base = stem[:8-len(suffix)] + suffix
+        candidate = (base.ljust(8) + ext.ljust(3)).encode("ascii")
         if candidate not in used_names:
             return candidate
-    raise RuntimeError("Unable to create unique FAT 8.3 alias for %s" % long_name)
 
+    raise RuntimeError("Unable to create unique FAT 8.3 alias for %s" % long_name)
 
 def _fat16_lfn_entries(long_name, short_name):
     """Return LFN directory entries for a FAT16 root directory."""
