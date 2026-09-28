@@ -74,35 +74,17 @@ static int scan_folder_cb(const rg_scandir_t *entry, void *arg)
     return RG_SCANDIR_CONTINUE;
 }
 
-static void add_bundled_rom_name(retro_app_t *app, const char *name)
+static void add_builtin_rom(retro_app_t *app, const char *name)
 {
-    // The image builder fails the build if these bundled files are missing.
-    // Therefore do not depend on stat()/d_type here: some ESP-IDF 4.4 rawflash
-    // FAT combinations expose the directory but fail file stat/dirent typing.
     if (!rg_extension_match(name, app->extensions))
         return;
 
-    const char *folder = RG_STORAGE_ROOT;
-    for (size_t i = 0; i < app->files_count; i++)
-    {
-        if (strcmp(app->files[i].name, name) == 0 &&
-            strcmp(app->files[i].folder, folder) == 0)
-            return;
-    }
-
-    if (app->files_count + 1 > app->files_capacity)
-    {
-        size_t new_capacity = (app->files_capacity * 1.5) + 1;
-        retro_file_t *new_buf = realloc(app->files, new_capacity * sizeof(retro_file_t));
-        if (!new_buf)
-            return;
-        app->files = new_buf;
-        app->files_capacity = new_capacity;
-    }
+    if (app->files_count >= app->files_capacity)
+        return;
 
     app->files[app->files_count++] = (retro_file_t) {
         .name = strdup(name),
-        .folder = rg_unique_string(folder),
+        .folder = rg_unique_string(RG_STORAGE_ROOT),
         .checksum = 0,
         .missing_cover = 0,
         .saves = 0,
@@ -110,22 +92,24 @@ static void add_bundled_rom_name(retro_app_t *app, const char *name)
         .app = app,
     };
 
-    RG_LOGI("Bundled ROM registered: '%s/%s'", folder, name);
+    RG_LOGI("Built-in ROM registered: %s/%s", RG_STORAGE_ROOT, name);
 }
 
-static void scan_bundled_rom_fallback(retro_app_t *app)
+static void load_builtin_rom_catalog(retro_app_t *app)
 {
 #ifdef RG_STORAGE_FLASH_PARTITION
-    // Register the exact long filenames written by rg_tool.py into /sd.
-    // This is deliberately independent of FAT d_type/stat.
+    // Internal flash is a fixed ROM volume. Do not enumerate FAT directory
+    // entries: raw-flash/FatFs combinations can disagree on LFN/d_type/stat.
+    // The image builder guarantees these exact 8.3 files are present.
     if (strcmp(app->short_name, "doom") == 0)
-        add_bundled_rom_name(app, "doom1.wad");
+        add_builtin_rom(app, "DOOM.WAD");
     else if (strcmp(app->short_name, "gba") == 0)
-        add_bundled_rom_name(app, "Super Mario Advance (USA, Europe).gba");
+        add_builtin_rom(app, "MARIO.GBA");
     else if (strcmp(app->short_name, "md") == 0)
-        add_bundled_rom_name(app, "Sonic The Hedgehog (USA, Europe).md");
+        add_builtin_rom(app, "SONIC.MD");
 #endif
 }
+
 
 static int scan_saves_cb(const rg_scandir_t *entry, void *arg)
 {
@@ -161,8 +145,11 @@ static void application_init(retro_app_t *app)
     // With the internal-flash target, /sd itself is the ROM volume.
     // This keeps the normal Retro-Go path logic intact while making the
     // firmware behave exactly like it had an SD card mounted at /sd.
+#ifdef RG_STORAGE_FLASH_PARTITION
+    load_builtin_rom_catalog(app);
+#else
     rg_storage_scandir(app->paths.roms, scan_folder_cb, app, RG_SCANDIR_RECURSIVE | RG_SCANDIR_STAT);
-    scan_bundled_rom_fallback(app);
+#endif
     rg_storage_scandir(app->paths.saves, scan_saves_cb, app, RG_SCANDIR_RECURSIVE);
     // rg_storage_scandir(app->paths.covers, scan_folder_cb3, app, RG_SCANDIR_RECURSIVE);
 
