@@ -74,16 +74,15 @@ static int scan_folder_cb(const rg_scandir_t *entry, void *arg)
     return RG_SCANDIR_CONTINUE;
 }
 
-static void add_bundled_rom(retro_app_t *app, const char *path)
+static void add_bundled_rom_name(retro_app_t *app, const char *name)
 {
-    rg_stat_t info = rg_storage_stat(path);
-    if (!info.exists || !info.is_file || !rg_extension_match(path, app->extensions))
+    // The image builder fails the build if these bundled files are missing.
+    // Therefore do not depend on stat()/d_type here: some ESP-IDF 4.4 rawflash
+    // FAT combinations expose the directory but fail file stat/dirent typing.
+    if (!rg_extension_match(name, app->extensions))
         return;
 
-    // Avoid adding the same ROM twice when the normal recursive scanner
-    // already found it under its long filename.
-    const char *name = rg_basename(path);
-    const char *folder = rg_dirname(path);
+    const char *folder = RG_STORAGE_ROOT;
     for (size_t i = 0; i < app->files_count; i++)
     {
         if (strcmp(app->files[i].name, name) == 0 &&
@@ -111,21 +110,20 @@ static void add_bundled_rom(retro_app_t *app, const char *path)
         .app = app,
     };
 
-    RG_LOGI("Bundled ROM found: '%s'", path);
+    RG_LOGI("Bundled ROM registered: '%s/%s'", folder, name);
 }
 
 static void scan_bundled_rom_fallback(retro_app_t *app)
 {
 #ifdef RG_STORAGE_FLASH_PARTITION
-    // These stable 8.3 aliases are always present in the generated FAT image.
-    // They let the launcher find the bundled games even if a particular
-    // FatFs build cannot expose the long-name directory entries.
+    // Register the exact long filenames written by rg_tool.py into /sd.
+    // This is deliberately independent of FAT d_type/stat.
     if (strcmp(app->short_name, "doom") == 0)
-        add_bundled_rom(app, RG_STORAGE_ROOT "/DOOM.WAD");
+        add_bundled_rom_name(app, "doom1.wad");
     else if (strcmp(app->short_name, "gba") == 0)
-        add_bundled_rom(app, RG_STORAGE_ROOT "/MARIO.GBA");
+        add_bundled_rom_name(app, "Super Mario Advance (USA, Europe).gba");
     else if (strcmp(app->short_name, "md") == 0)
-        add_bundled_rom(app, RG_STORAGE_ROOT "/SONIC.MD");
+        add_bundled_rom_name(app, "Sonic The Hedgehog (USA, Europe).md");
 #endif
 }
 
