@@ -39,9 +39,6 @@ static bool disk_mounted = false;
 #if defined(RG_STORAGE_SDSPI_HOST) || defined(RG_STORAGE_SDMMC_HOST)
 static sdmmc_card_t *card_handle = NULL;
 #endif
-#if defined(RG_STORAGE_FLASH_PARTITION)
-static wl_handle_t wl_handle = WL_INVALID_HANDLE;
-#endif
 
 #define CHECK_PATH(path)          \
     if (!(path && path[0]))       \
