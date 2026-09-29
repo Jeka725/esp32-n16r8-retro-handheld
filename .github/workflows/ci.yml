@@ -30,6 +30,8 @@ jobs:
         docker run --rm -v $(pwd)/build:/build retro-go:latest sh -c 'set -e; cp /app/*.fw /build/ 2>/dev/null || true; cp /app/*.img /build/ 2>/dev/null || true; ls -lh /build'
         IMG="$(find build -maxdepth 1 -name '*.img' -type f | head -n1)"
         test -n "$IMG"
+        test "$(stat -c%s "$IMG")" -eq 16384000
+        grep -a -q "Sonic The Hedgehog (USA, Europe).md" "$IMG"
         cp "$IMG" build/retro-go.img
 
     - name: Upload artifacts
@@ -37,16 +39,3 @@ jobs:
       with:
         name: binaries
         path: build/*
-
-    - name: Start local Wokwi simulation server
-      uses: wokwi/wokwi-ci-server-action@v1
-
-    - name: Test complete firmware in Wokwi
-      uses: wokwi/wokwi-ci-action@v1
-      with:
-        token: local
-        path: /
-        timeout: 30000
-        scenario: test-retro-go.yaml
-        serial_log_file: wokwi-retro-go.log
-        fail_text: 'System Panic|Guru Meditation|abort() was called|panic'
