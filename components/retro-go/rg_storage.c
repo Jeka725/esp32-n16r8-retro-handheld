@@ -209,6 +209,11 @@ void rg_storage_init(void)
         RG_LOGE("Storage mounting failed! err=0x%x", error_code);
 }
 
+bool rg_storage_ready(void)
+{
+    return disk_mounted;
+}
+
 void rg_storage_deinit(void)
 {
     if (!disk_mounted)
