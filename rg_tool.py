@@ -212,7 +212,7 @@ def _build_fat16_image(output_file, file_specs, image_size):
     struct.pack_into("<I", image, 39, 0x5254474F)
     image[43:54] = b"RETROGO    "
     image[54:62] = b"FAT12   "
-    image[510:512] = b"\x55\xAA"
+    # The boot-sector signature belongs at the end of the logical sector.\n    # This image uses 4096-byte flash/FAT sectors, so writing it at 510\n    # leaves the FAT filesystem without a valid 0x55AA signature.\n    image[sector_size - 2:sector_size] = b"\x55\xAA"
 
     fat_offset = reserved_sectors * sector_size
     fat_bytes = fat_sectors * sector_size
