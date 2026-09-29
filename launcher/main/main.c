@@ -490,6 +490,15 @@ void app_main(void)
         rg_storage_mkdir(RG_BASE_PATH_CACHE);
         rg_storage_mkdir(RG_BASE_PATH_CONFIG);
         try_migrate();
+
+        // Emergency standalone Sonic build: boot directly into the bundled
+        // Mega Drive ROM so the handheld is immediately playable without the launcher menu.
+        // The image builder always places this ROM at this exact Retro-Go path.
+        const char *sonic_path = RG_STORAGE_ROOT "/retro-go/roms/md/Sonic The Hedgehog (USA, Europe).md";
+        if (rg_storage_exists(sonic_path))
+        {
+            rg_system_switch_app("gwenesis", "md", sonic_path, -1, 0);
+        }
     }
 
 #ifdef ESP_PLATFORM
