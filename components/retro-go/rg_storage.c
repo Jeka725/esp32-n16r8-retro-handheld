@@ -199,7 +199,7 @@ void rg_storage_init(void)
             .max_files = 4, // must be initialized, otherwise it will be 0, which doesn't make sense, and will trigger an ESP_ERR_NO_MEM error
         };
 
-        esp_err_t err = esp_vfs_fat_spiflash_mount(RG_STORAGE_ROOT, RG_STORAGE_FLASH_PARTITION, &mount_config, &wl_handle);
+        esp_err_t err = esp_vfs_fat_spiflash_mount_ro(RG_STORAGE_ROOT, RG_STORAGE_FLASH_PARTITION, &mount_config);
         error_code = (int)err;
     }
 
@@ -233,7 +233,7 @@ void rg_storage_deinit(void)
 
 #if defined(RG_STORAGE_FLASH_PARTITION)
     {
-        esp_err_t err = esp_vfs_fat_spiflash_unmount(RG_STORAGE_ROOT, wl_handle);
+        esp_err_t err = esp_vfs_fat_spiflash_unmount_ro(RG_STORAGE_ROOT, RG_STORAGE_FLASH_PARTITION);
         wl_handle = WL_INVALID_HANDLE;
         error_code = (int)err;
     }
