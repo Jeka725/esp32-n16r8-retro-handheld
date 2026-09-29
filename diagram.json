@@ -6,165 +6,227 @@
     {
       "type": "board-esp32-s3-devkitc-1",
       "id": "esp",
-      "top": 0,
-      "left": 0,
+      "top": -30,
+      "left": -80,
       "attrs": {
         "flashSize": "16",
         "psramSize": "8",
-        "psramType": "octal"
+        "psramType": "octal",
+        "serialInterface": "USB_SERIAL_JTAG"
       }
     },
     {
       "type": "chip-st7735",
-      "id": "display",
-      "top": -20,
-      "left": 280,
+      "id": "lcd",
+      "top": -180,
+      "left": 260,
+      "rotate": 180,
       "attrs": {}
     },
     {
       "type": "wokwi-pushbutton",
-      "id": "btn_up",
-      "top": 180,
-      "left": 40,
+      "id": "up",
+      "top": 160,
+      "left": -240,
       "attrs": {
         "color": "green",
-        "label": "UP"
+        "label": "UP",
+        "key": "ArrowUp",
+        "bounce": "0"
       }
     },
     {
       "type": "wokwi-pushbutton",
-      "id": "btn_down",
-      "top": 180,
-      "left": 120,
+      "id": "down",
+      "top": 220,
+      "left": -240,
       "attrs": {
         "color": "green",
-        "label": "DOWN"
+        "label": "DOWN",
+        "key": "ArrowDown",
+        "bounce": "0"
       }
     },
     {
       "type": "wokwi-pushbutton",
-      "id": "btn_left",
-      "top": 180,
-      "left": 200,
+      "id": "left",
+      "top": 160,
+      "left": -80,
       "attrs": {
-        "color": "green",
-        "label": "LEFT"
+        "color": "blue",
+        "label": "LEFT",
+        "key": "ArrowLeft",
+        "bounce": "0"
       }
     },
     {
       "type": "wokwi-pushbutton",
-      "id": "btn_right",
-      "top": 180,
-      "left": 280,
+      "id": "right",
+      "top": 220,
+      "left": -80,
       "attrs": {
-        "color": "green",
-        "label": "RIGHT"
+        "color": "blue",
+        "label": "RIGHT",
+        "key": "ArrowRight",
+        "bounce": "0"
       }
     },
     {
       "type": "wokwi-pushbutton",
-      "id": "btn_select",
-      "top": 180,
-      "left": 360,
+      "id": "select",
+      "top": 190,
+      "left": 80,
       "attrs": {
-        "color": "green",
-        "label": "SELECT"
+        "color": "red",
+        "label": "SELECT",
+        "key": "Enter",
+        "bounce": "0"
       }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "backlight",
+      "top": -70,
+      "left": 430,
+      "attrs": {
+        "color": "white",
+        "label": "BL"
+      }
+    },
+    {
+      "type": "wokwi-gnd",
+      "id": "gnd",
+      "top": 310,
+      "left": 300,
+      "attrs": {}
     }
   ],
   "connections": [
     [
       "esp:3V3",
-      "display:VCC",
-      "red"
+      "lcd:VCC",
+      "red",
+      []
     ],
     [
       "esp:GND.1",
-      "display:GND",
-      "black"
-    ],
-    [
-      "esp:6",
-      "display:DIN",
-      "orange"
+      "lcd:GND",
+      "black",
+      []
     ],
     [
       "esp:5",
-      "display:SCK",
-      "yellow"
+      "lcd:SCK",
+      "green",
+      []
+    ],
+    [
+      "esp:6",
+      "lcd:MOSI",
+      "green",
+      []
     ],
     [
       "esp:16",
-      "display:CS",
-      "blue"
+      "lcd:CS",
+      "green",
+      []
     ],
     [
       "esp:7",
-      "display:DC",
-      "green"
+      "lcd:DS",
+      "green",
+      []
     ],
     [
       "esp:15",
-      "display:RST",
-      "purple"
+      "lcd:RST",
+      "green",
+      []
     ],
     [
       "esp:4",
-      "display:BLA",
-      "red"
+      "backlight:A",
+      "orange",
+      []
+    ],
+    [
+      "backlight:C",
+      "esp:GND.2",
+      "black",
+      []
     ],
     [
       "esp:9",
-      "btn_up:1",
-      "green"
+      "up:1.l",
+      "green",
+      []
     ],
     [
-      "btn_up:2",
-      "esp:GND.1",
-      "black"
+      "up:2.l",
+      "esp:GND.3",
+      "black",
+      []
     ],
     [
       "esp:11",
-      "btn_down:1",
-      "green"
+      "down:1.l",
+      "green",
+      []
     ],
     [
-      "btn_down:2",
-      "esp:GND.1",
-      "black"
+      "down:2.l",
+      "esp:GND.3",
+      "black",
+      []
     ],
     [
       "esp:12",
-      "btn_left:1",
-      "green"
+      "left:1.l",
+      "green",
+      []
     ],
     [
-      "btn_left:2",
-      "esp:GND.1",
-      "black"
+      "left:2.l",
+      "esp:GND.3",
+      "black",
+      []
     ],
     [
       "esp:13",
-      "btn_right:1",
-      "green"
+      "right:1.l",
+      "green",
+      []
     ],
     [
-      "btn_right:2",
-      "esp:GND.1",
-      "black"
+      "right:2.l",
+      "esp:GND.3",
+      "black",
+      []
     ],
     [
       "esp:14",
-      "btn_select:1",
-      "green"
+      "select:1.l",
+      "green",
+      []
     ],
     [
-      "btn_select:2",
-      "esp:GND.1",
-      "black"
+      "select:2.l",
+      "esp:GND.3",
+      "black",
+      []
+    ],
+    [
+      "esp:GND.4",
+      "gnd:GND",
+      "black",
+      []
     ]
   ],
   "dependencies": {
     "chip-st7735": "github:martysweet/st7735-wokwi-chip@1.0.4"
+  },
+  "serialMonitor": {
+    "display": "terminal"
   }
 }
