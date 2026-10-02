@@ -53,7 +53,7 @@
 // emulator frames when their aspect ratio differs from 128x160.
 // The panel image is rotated 180 degrees by ST7735 MADCTL above.
 #ifndef RG_DISPLAY_DEFAULT_SCALING
-#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FULL
+#define RG_DISPLAY_DEFAULT_SCALING RG_DISPLAY_SCALING_FIT
 #endif
 #define RG_DISPLAY_DEFAULT_FILTER  RG_DISPLAY_FILTER_BOTH
 
